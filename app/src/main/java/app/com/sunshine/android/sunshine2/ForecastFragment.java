@@ -16,14 +16,23 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.sql.Time;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 
 
@@ -135,6 +144,39 @@ public class ForecastFragment extends Fragment {
     public class FetchWeatherTask extends AsyncTask<String, Void, Void>{
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
+
+        private String getReadableDateString(int time){
+            SimpleDateFormat sdf = new SimpleDateFormat("EE MM DD");
+            return sdf.format(time);
+        }
+
+        private String[] getWeatherDataFromJson(String forecastJsonStr, int numDays) throws JSONException{
+
+            final String OWM_LIST = "list";
+            final String OWM_WEATHER = "weather";
+            final String OWM_TEMPERATURE = "temp";
+            final String OWM_MAX = "max";
+            final String OWM_MIN = "min";
+            final String OWM_DEXCRIPTION = "main";
+
+            JSONObject forecastJson = new JSONObject(forecastJsonStr);
+            JSONArray weatherArray = forecastJson.getJSONArray(OWM_LIST);
+
+            Calendar calendar = new GregorianCalendar();
+
+            String[] resultStrs = new String[numDays];
+            for(int i=0; i < weatherArray.length(); i++){
+                String day;
+                String description;
+                String highAndLow;
+
+                calendar.add(Calendar.DATE, i);
+                day = getReadableDateString(calendar.get(Calendar.DATE));
+            }
+
+            return resultStrs;
+
+        }
 
         @Override
         protected Void doInBackground(String... params) {
