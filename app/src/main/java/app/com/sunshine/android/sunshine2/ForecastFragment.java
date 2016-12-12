@@ -1,6 +1,7 @@
 package app.com.sunshine.android.sunshine2;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -13,8 +14,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -27,6 +30,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.Time;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,7 +72,7 @@ public class ForecastFragment extends Fragment {
 
         if(id == R.id.action_refresh){
             FetchWeatherTask weatherTask = new FetchWeatherTask();
-            weatherTask.execute("94043");
+            weatherTask.execute("700041");
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -97,7 +101,16 @@ public class ForecastFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
         ListView listView = (ListView)rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
-
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                String forecast = mForecastAdapter.getItem(i);
+//                Toast.makeText(getActivity(), forecast, Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(getActivity(), DetailActivity.class)
+                        .putExtra(Intent.EXTRA_TEXT, forecast);
+                startActivity(intent);
+            }
+        });
 
         return rootView;
     }
@@ -141,13 +154,22 @@ public class ForecastFragment extends Fragment {
         void onFragmentInteraction(Uri uri);
     }
 
-    public class FetchWeatherTask extends AsyncTask<String, Void, Void>{
+    public class FetchWeatherTask extends AsyncTask<String, Void, String[]>{
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
 
         private String getReadableDateString(int time){
-            SimpleDateFormat sdf = new SimpleDateFormat("EE MM DD");
+            SimpleDateFormat sdf = new SimpleDateFormat("EE MMM dd");
             return sdf.format(time);
+        }
+
+        private String formatHighLows(double high, double low) {
+            // For presentation, assume the user doesn't care about tenths of a degree.
+            long roundedHigh = Math.round(high);
+            long roundedLow = Math.round(low);
+
+            String highLowStr = roundedHigh + "/" + roundedLow;
+            return highLowStr;
         }
 
         private String[] getWeatherDataFromJson(String forecastJsonStr, int numDays) throws JSONException{
@@ -157,12 +179,14 @@ public class ForecastFragment extends Fragment {
             final String OWM_TEMPERATURE = "temp";
             final String OWM_MAX = "max";
             final String OWM_MIN = "min";
-            final String OWM_DEXCRIPTION = "main";
+            final String OWM_DESCRIPTION = "main";
 
             JSONObject forecastJson = new JSONObject(forecastJsonStr);
             JSONArray weatherArray = forecastJson.getJSONArray(OWM_LIST);
 
             Calendar calendar = new GregorianCalendar();
+            SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM dd");
+            calendar.setTime(new Date());
 
             String[] resultStrs = new String[numDays];
             for(int i=0; i < weatherArray.length(); i++){
@@ -171,7 +195,23 @@ public class ForecastFragment extends Fragment {
                 String highAndLow;
 
                 calendar.add(Calendar.DATE, i);
-                day = getReadableDateString(calendar.get(Calendar.DATE));
+                Date resultDate = calendar.getTime();
+                day = sdf.format(resultDate);
+                calendar.setTime(new Date());
+
+                JSONObject dayForecast = weatherArray.getJSONObject(i);
+
+                JSONObject weatherObject = dayForecast.getJSONArray(OWM_WEATHER).getJSONObject(0);
+                description = weatherObject.getString(OWM_DESCRIPTION);
+
+                // Temperatures are in a child object called "temp".  Try not to name variables
+                // "temp" when working with temperature.  It confuses everybody.
+                JSONObject temperatureObject = dayForecast.getJSONObject(OWM_TEMPERATURE);
+                double high = temperatureObject.getDouble(OWM_MAX);
+                double low = temperatureObject.getDouble(OWM_MIN);
+
+                highAndLow = formatHighLows(high, low);
+                resultStrs[i] = day + " - " + description + " - " + highAndLow;
             }
 
             return resultStrs;
@@ -179,13 +219,13 @@ public class ForecastFragment extends Fragment {
         }
 
         @Override
-        protected Void doInBackground(String... params) {
+        protected String[] doInBackground(String... params) {
             HttpURLConnection urlConnection = null;
             BufferedReader reader = null;
             String forecastJsonStr = null;
             String format = "json";
             String units = "metric";
-            String numDays = "7";
+            int numDays = 7;
 
             try{
                 final String FORECAST_BASE_URL = "http://api.openweathermap.org/data/2.5/forecast/daily?";
@@ -201,7 +241,7 @@ public class ForecastFragment extends Fragment {
                         .appendQueryParameter(QUERY_PARAM, params[0])
                         .appendQueryParameter(FORMAT_PARAM, format)
                         .appendQueryParameter(UNITS_PARAM, units)
-                        .appendQueryParameter(DAYS_PARAM,numDays)
+                        .appendQueryParameter(DAYS_PARAM,Integer.toString(numDays))
                         .appendQueryParameter(APPID_PARAM, "afb2e5338cb3fd3724b48844326b8537")
                         .build();
 
@@ -253,7 +293,23 @@ public class ForecastFragment extends Fragment {
 
             }
 
+            try {
+                return getWeatherDataFromJson(forecastJsonStr, numDays);
+            } catch (JSONException e) {
+                Log.e(LOG_TAG, e.getMessage(), e);
+                e.printStackTrace();
+            }
+
             return  null;
+        }
+
+        @Override
+        protected void onPostExecute(String[] result) {
+            if (result != null) {
+                mForecastAdapter.clear();
+                mForecastAdapter.addAll(result);
+                // New data is back from the server.  Hooray!
+            }
         }
     }
 }
