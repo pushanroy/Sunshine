@@ -75,13 +75,15 @@ public class DetailActivity extends AppCompatActivity {
 
             MenuItem menuItem = menu.findItem(R.id.action_share);
 
-            ShareActionProvider mShareActionProvider = (ShareActionProvider)MenuItemCompat.getActionProvider(menuItem);
+            ShareActionProvider mShareActionProvider = new ShareActionProvider(getActivity());
 
             if(mShareActionProvider != null){
                 mShareActionProvider.setShareIntent(createShareForecastIntent());
             }else{
                 Log.e(LOG_TAG,"SharedAction Provider is NULL");
             }
+
+            MenuItemCompat.setActionProvider(menuItem, mShareActionProvider);
         }
 
         private Intent createShareForecastIntent(){
