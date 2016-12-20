@@ -78,8 +78,9 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 
-        if(id == R.id.action_map){
-            openPreferredLocationInMap();
+        if(id == R.id.action_refresh){
+           // openPreferredLocationInMap();
+            updateWeather();
             return true;
         }else if(id == R.id.settings){
             startActivity(new Intent(getActivity(), SettingsActivity.class));
@@ -88,10 +89,15 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
+    /*@Override
     public void onStart() {
         super.onStart();
         updateWeather();
+    }*/
+
+    public void onLocationChanged(){
+        updateWeather();
+        getLoaderManager().restartLoader(FORECAST_LOADER, null, this);
     }
 
     private void openPreferredLocationInMap(){
@@ -114,10 +120,10 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     }
 
     private void updateWeather(){
-       /* FetchWeatherTask weatherTask = new FetchWeatherTask(getActivity(), mForecastAdapter);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
-        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
-        weatherTask.execute(location);*/
+        FetchWeatherTask weatherTask = new FetchWeatherTask(getActivity());
+//        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+//        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+        weatherTask.execute(Utility.getPreferredLocation(getActivity()));
     }
 
     @Override
