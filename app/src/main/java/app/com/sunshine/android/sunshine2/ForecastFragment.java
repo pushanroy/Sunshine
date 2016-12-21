@@ -229,6 +229,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
 
     @Override
     public void onLoaderReset(Loader loader) {
+
         mForecastAdapter.swapCursor(null);
     }
 
