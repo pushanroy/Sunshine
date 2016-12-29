@@ -1,5 +1,7 @@
 package app.com.sunshine.android.sunshine2;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -21,6 +23,7 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import app.com.sunshine.android.sunshine2.data.WeatherContract;
+import app.com.sunshine.android.sunshine2.service.SunshineService;
 
 
 /**
@@ -33,6 +36,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
 
     private final String LOG_TAG = ForecastFragment.class.getSimpleName();
     private static final int FORECAST_LOADER = 0;
+    private boolean mUseTodayLayout;
 
     private static final String[] FORECAST_COLUMNS = {
             WeatherContract.WeatherEntry.TABLE_NAME+"."+WeatherContract.WeatherEntry._ID,
@@ -58,9 +62,16 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
 
     private OnFragmentInteractionListener mListener;
     private ForecastAdapter mForecastAdapter;
+    private ListView mListView;
+    private int mPosition = ListView.INVALID_POSITION;
+    private static final String SELECTED_KEY = "selected_position";
 
     public ForecastFragment() {
         // Required empty public constructor
+    }
+
+    public interface Callback{
+        public void onItemSelected(Uri dateUri);
     }
 
     @Override
@@ -120,10 +131,21 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     }
 
     private void updateWeather(){
-        FetchWeatherTask weatherTask = new FetchWeatherTask(getActivity());
+        /*FetchWeatherTask weatherTask = new FetchWeatherTask(getActivity());
 //        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
 //        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
-        weatherTask.execute(Utility.getPreferredLocation(getActivity()));
+        weatherTask.execute(Utility.getPreferredLocation(getActivity()));*/
+        /*Intent intent = new Intent(getActivity(), SunshineService.class);
+        intent.putExtra(SunshineService.LOCATION_QUERY_EXTRA, Utility.getPreferredLocation(getActivity()));
+        getActivity().startService(intent);*/
+
+        Intent alarmIntent = new Intent(getActivity(), SunshineService.AlarmReceiver.class);
+        alarmIntent.putExtra(SunshineService.LOCATION_QUERY_EXTRA, Utility.getPreferredLocation(getActivity()));
+
+        PendingIntent pi = PendingIntent.getBroadcast(getActivity(),0, alarmIntent, PendingIntent.FLAG_ONE_SHOT);
+
+        AlarmManager am = (AlarmManager)getActivity().getSystemService(Context.ALARM_SERVICE);
+        am.set(AlarmManager.RTC_WAKEUP,System.currentTimeMillis()+5000, pi);
     }
 
     @Override
@@ -147,8 +169,8 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         mForecastAdapter = new ForecastAdapter(getActivity(), null, 0);
 
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
-        ListView listView = (ListView)rootView.findViewById(R.id.listview_forecast);
-        listView.setAdapter(mForecastAdapter);
+        mListView = (ListView)rootView.findViewById(R.id.listview_forecast);
+        mListView.setAdapter(mForecastAdapter);
         /*listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
@@ -159,20 +181,38 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
                 startActivity(intent);
             }
         });*/
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
                 Cursor cursor = (Cursor)adapterView.getItemAtPosition(i);
                 String locationSetting = Utility.getPreferredLocation(getActivity());
-                Intent intent = new Intent(getActivity(), DetailActivity.class)
+                mPosition = i;
+                /*Intent intent = new Intent(getActivity(), DetailActivity.class)
                         .setData(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(
                                 locationSetting, cursor.getLong(COL_WEATHER_DATE)
                         ));
-                startActivity(intent);
+                startActivity(intent);*/
+                ((Callback)getActivity())
+                        .onItemSelected(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(
+                                locationSetting, cursor.getLong(COL_WEATHER_DATE)
+                        ));
             }
         });
 
+        if(savedInstanceState != null && savedInstanceState.containsKey(SELECTED_KEY)){
+            mPosition = savedInstanceState.getInt(SELECTED_KEY);
+        }
+
+        mForecastAdapter.setUseTodayLayout(mUseTodayLayout);
+
         return rootView;
+    }
+
+    public void setUseTodayLayout(boolean useTodayLayout){
+        mUseTodayLayout = useTodayLayout;
+        if(mForecastAdapter != null){
+            mForecastAdapter.setUseTodayLayout(mUseTodayLayout);
+        }
     }
 
     // TODO: Rename method, update argument and hook method into UI event
@@ -225,12 +265,25 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
         mForecastAdapter.swapCursor(data);
+
+        if(mPosition != ListView.INVALID_POSITION){
+            mListView.smoothScrollToPosition(mPosition);
+        }
     }
 
     @Override
     public void onLoaderReset(Loader loader) {
 
         mForecastAdapter.swapCursor(null);
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+
+        if(mPosition != ListView.INVALID_POSITION){
+            outState.putInt(SELECTED_KEY,mPosition);
+        }
+        super.onSaveInstanceState(outState);
     }
 
     /**
