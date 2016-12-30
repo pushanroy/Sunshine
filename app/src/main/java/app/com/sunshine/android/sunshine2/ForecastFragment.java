@@ -1,7 +1,5 @@
 package app.com.sunshine.android.sunshine2;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -23,7 +21,7 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import app.com.sunshine.android.sunshine2.data.WeatherContract;
-import app.com.sunshine.android.sunshine2.service.SunshineService;
+import app.com.sunshine.android.sunshine2.sync.SunshineSyncAdapter;
 
 
 /**
@@ -96,6 +94,8 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         }else if(id == R.id.settings){
             startActivity(new Intent(getActivity(), SettingsActivity.class));
             return true;
+        }else if(id == R.id.action_map){
+            openPreferredLocationInMap();
         }
         return super.onOptionsItemSelected(item);
     }
@@ -115,72 +115,50 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         /*SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
         String location = prefs.getString(getString(R.string.pref_location_key),getString(R.string.pref_location_default));*/
 
-        String location = Utility.getPreferredLocation(getActivity());
+       // String location = Utility.getPreferredLocation(getActivity());
 
-        Uri geoLocation = Uri.parse("geo:0,0?").buildUpon()
-                .appendQueryParameter("q",location).build();
+        if(mForecastAdapter != null){
+            Cursor c = mForecastAdapter.getCursor();
+            if(c != null){
+                c.moveToPosition(0);
+                String posLat = c.getString(COL_COORD_LAT);
+                String posLong = c.getString(COL_COORD_LONG);
+                Uri geoLocation = Uri.parse("geo:"+posLat+","+posLong);
 
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(geoLocation);
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setData(geoLocation);
 
-        if(intent.resolveActivity(getActivity().getPackageManager()) != null){
-            startActivity(intent);
-        }else{
-            Log.e(LOG_TAG, "Could not find any suitable app");
+                if(intent.resolveActivity(getActivity().getPackageManager()) != null){
+                    startActivity(intent);
+                }else{
+                    Log.e(LOG_TAG, "Could not find any suitable app");
+                }
+            }
         }
     }
 
     private void updateWeather(){
-        /*FetchWeatherTask weatherTask = new FetchWeatherTask(getActivity());
-//        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
-//        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
-        weatherTask.execute(Utility.getPreferredLocation(getActivity()));*/
-        /*Intent intent = new Intent(getActivity(), SunshineService.class);
-        intent.putExtra(SunshineService.LOCATION_QUERY_EXTRA, Utility.getPreferredLocation(getActivity()));
-        getActivity().startService(intent);*/
 
-        Intent alarmIntent = new Intent(getActivity(), SunshineService.AlarmReceiver.class);
+        /*Intent alarmIntent = new Intent(getActivity(), SunshineService.AlarmReceiver.class);
         alarmIntent.putExtra(SunshineService.LOCATION_QUERY_EXTRA, Utility.getPreferredLocation(getActivity()));
 
         PendingIntent pi = PendingIntent.getBroadcast(getActivity(),0, alarmIntent, PendingIntent.FLAG_ONE_SHOT);
 
         AlarmManager am = (AlarmManager)getActivity().getSystemService(Context.ALARM_SERVICE);
-        am.set(AlarmManager.RTC_WAKEUP,System.currentTimeMillis()+5000, pi);
+        am.set(AlarmManager.RTC_WAKEUP,System.currentTimeMillis()+5000, pi);*/
+        SunshineSyncAdapter.syncImmediately(getActivity());
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        /*String locationSetting = Utility.getPreferredLocation(getActivity());
-        *//*mForecastAdapter = new ArrayAdapter<String>(
-                getActivity(),
-                R.layout.list_item_forecast,
-                R.id.list_item_forecast_textview,
-                new ArrayList<String>()
-        );*//*
-        // Inflate the layout for this fragment
-        String sortOrder = WeatherContract.WeatherEntry.COLUMN_DATE+" ASC";
-        Uri weatherForLocationUri = WeatherContract.WeatherEntry.buildWeatherLocationWithStartDate(locationSetting,
-                System.currentTimeMillis());
-        Cursor cur = getActivity().getContentResolver().query(weatherForLocationUri,
-                null,null,null,sortOrder);*/
 
         mForecastAdapter = new ForecastAdapter(getActivity(), null, 0);
 
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
         mListView = (ListView)rootView.findViewById(R.id.listview_forecast);
         mListView.setAdapter(mForecastAdapter);
-        /*listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                String forecast = mForecastAdapter.getItem(i);
-//                Toast.makeText(getActivity(), forecast, Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(getActivity(), DetailActivity.class)
-                        .putExtra(Intent.EXTRA_TEXT, forecast);
-                startActivity(intent);
-            }
-        });*/
         mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
